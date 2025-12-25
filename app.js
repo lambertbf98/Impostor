@@ -77,6 +77,205 @@ const WORDS = [
 ];
 
 // ============================================
+// SISTEMA DE AUDIO
+// ============================================
+
+let audioContext = null;
+let isMuted = false;
+
+function initAudio() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+}
+
+// Sonido de revelar carta (whoosh misterioso)
+function playCardRevealSound() {
+    if (isMuted || !audioContext) return;
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+
+    osc.frequency.setValueAtTime(800, audioContext.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.3);
+
+    gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+    osc.start();
+    osc.stop(audioContext.currentTime + 0.3);
+}
+
+// Tick del reloj (normal)
+function playTick() {
+    if (isMuted || !audioContext) return;
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+
+    osc.frequency.setValueAtTime(800, audioContext.currentTime);
+    osc.type = 'sine';
+
+    gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.05);
+
+    osc.start();
+    osc.stop(audioContext.currentTime + 0.05);
+}
+
+// Tick urgente (últimos 30 segundos)
+function playUrgentTick() {
+    if (isMuted || !audioContext) return;
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+
+    osc.frequency.setValueAtTime(1200, audioContext.currentTime);
+    osc.type = 'square';
+
+    gain.gain.setValueAtTime(0.15, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.08);
+
+    osc.start();
+    osc.stop(audioContext.currentTime + 0.08);
+}
+
+// Tick muy urgente (últimos 10 segundos)
+function playVeryUrgentTick() {
+    if (isMuted || !audioContext) return;
+
+    // Doble tick
+    for (let i = 0; i < 2; i++) {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+
+        osc.frequency.setValueAtTime(1500, audioContext.currentTime + i * 0.1);
+        osc.type = 'square';
+
+        gain.gain.setValueAtTime(0.2, audioContext.currentTime + i * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + i * 0.1 + 0.06);
+
+        osc.start(audioContext.currentTime + i * 0.1);
+        osc.stop(audioContext.currentTime + i * 0.1 + 0.06);
+    }
+}
+
+// Alarma de tiempo terminado
+function playAlarm() {
+    if (isMuted || !audioContext) return;
+
+    const frequencies = [523, 659, 784, 1047]; // Do-Mi-Sol-Do
+
+    frequencies.forEach((freq, i) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+
+        osc.frequency.setValueAtTime(freq, audioContext.currentTime + i * 0.15);
+        osc.type = 'sine';
+
+        gain.gain.setValueAtTime(0.3, audioContext.currentTime + i * 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + i * 0.15 + 0.3);
+
+        osc.start(audioContext.currentTime + i * 0.15);
+        osc.stop(audioContext.currentTime + i * 0.15 + 0.3);
+    });
+}
+
+// Música de fondo misteriosa (drone atmosférico)
+let bgMusicOscillators = [];
+let bgMusicGain = null;
+
+function startBackgroundMusic() {
+    if (isMuted || !audioContext) return;
+    stopBackgroundMusic();
+
+    bgMusicGain = audioContext.createGain();
+    bgMusicGain.connect(audioContext.destination);
+    bgMusicGain.gain.setValueAtTime(0, audioContext.currentTime);
+    bgMusicGain.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + 2);
+
+    // Notas base para atmósfera misteriosa (La menor)
+    const baseFreqs = [110, 164.81, 220]; // A2, E3, A3
+
+    baseFreqs.forEach(freq => {
+        const osc = audioContext.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+        osc.connect(bgMusicGain);
+        osc.start();
+        bgMusicOscillators.push(osc);
+    });
+
+    // Oscilador LFO para efecto de pulsación
+    const lfo = audioContext.createOscillator();
+    const lfoGain = audioContext.createGain();
+    lfo.frequency.setValueAtTime(0.5, audioContext.currentTime);
+    lfoGain.gain.setValueAtTime(0.02, audioContext.currentTime);
+    lfo.connect(lfoGain);
+    lfoGain.connect(bgMusicGain.gain);
+    lfo.start();
+    bgMusicOscillators.push(lfo);
+}
+
+function stopBackgroundMusic() {
+    bgMusicOscillators.forEach(osc => {
+        try {
+            osc.stop();
+        } catch(e) {}
+    });
+    bgMusicOscillators = [];
+    bgMusicGain = null;
+}
+
+// Intensificar música cuando queda poco tiempo
+function intensifyMusic() {
+    if (bgMusicGain && audioContext) {
+        bgMusicGain.gain.linearRampToValueAtTime(0.15, audioContext.currentTime + 1);
+    }
+}
+
+// Toggle mute
+function toggleMute() {
+    isMuted = !isMuted;
+
+    const muteBtn = document.getElementById('btnMute');
+    const soundOn = document.getElementById('soundOnIcon');
+    const soundOff = document.getElementById('soundOffIcon');
+
+    if (isMuted) {
+        muteBtn.classList.add('muted');
+        soundOn.style.display = 'none';
+        soundOff.style.display = 'block';
+        stopBackgroundMusic();
+    } else {
+        muteBtn.classList.remove('muted');
+        soundOn.style.display = 'block';
+        soundOff.style.display = 'none';
+        if (gameState.timerRunning && !gameState.timerPaused) {
+            startBackgroundMusic();
+        }
+    }
+}
+
+// ============================================
 // ESTADO DEL JUEGO
 // ============================================
 
@@ -327,10 +526,25 @@ function startTimer() {
     updateTimerDisplay();
     showScreen('game');
 
+    // Iniciar música de fondo
+    startBackgroundMusic();
+
     gameState.timerInterval = setInterval(() => {
         if (!gameState.timerPaused) {
             gameState.timeRemaining--;
             updateTimerDisplay();
+
+            // Sonidos según el tiempo restante
+            if (gameState.timeRemaining <= 10 && gameState.timeRemaining > 0) {
+                playVeryUrgentTick();
+            } else if (gameState.timeRemaining <= 30 && gameState.timeRemaining > 0) {
+                playUrgentTick();
+                if (gameState.timeRemaining === 30) {
+                    intensifyMusic();
+                }
+            } else if (gameState.timeRemaining > 0) {
+                playTick();
+            }
 
             if (gameState.timeRemaining <= 0) {
                 endTimer();
@@ -378,12 +592,15 @@ function togglePause() {
 function endTimer() {
     clearInterval(gameState.timerInterval);
     gameState.timerRunning = false;
+    stopBackgroundMusic();
+    playAlarm();
     showResult();
 }
 
 function endGame() {
     clearInterval(gameState.timerInterval);
     gameState.timerRunning = false;
+    stopBackgroundMusic();
     showResult();
 }
 
@@ -439,9 +656,10 @@ function setupCardGestures() {
             const progress = Math.min(deltaY / 100, 1);
             elements.cardInner.style.transform = `rotateY(${progress * 180}deg)`;
 
-            // Si llegó al máximo, marcar como vista
-            if (progress >= 1) {
+            // Si llegó al máximo, marcar como vista y reproducir sonido
+            if (progress >= 1 && !hasSeenCard) {
                 hasSeenCard = true;
+                playCardRevealSound();
             }
         }
     }
@@ -497,7 +715,10 @@ function hideRules() {
 
 document.addEventListener('DOMContentLoaded', () => {
     // Home
-    document.getElementById('btnStart').addEventListener('click', () => showScreen('config'));
+    document.getElementById('btnStart').addEventListener('click', () => {
+        initAudio(); // Inicializar audio en primera interacción
+        showScreen('config');
+    });
     document.getElementById('btnRules').addEventListener('click', showRules);
 
     // Config
@@ -516,6 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnNextPlayer').addEventListener('click', nextPlayer);
 
     // Game
+    document.getElementById('btnMute').addEventListener('click', toggleMute);
     document.getElementById('btnPauseTimer').addEventListener('click', togglePause);
     document.getElementById('btnEndGame').addEventListener('click', endGame);
 
