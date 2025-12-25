@@ -548,3 +548,11 @@ document.body.addEventListener('touchmove', (e) => {
     if (e.target.closest('.modal-body')) return;
     e.preventDefault();
 }, { passive: false });
+
+// Ocultar splash screen después de la animación
+setTimeout(() => {
+    const splash = document.getElementById('splashScreen');
+    if (splash) {
+        splash.classList.add('hidden');
+    }
+}, 2500);
