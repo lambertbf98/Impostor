@@ -83,7 +83,9 @@ const WORDS = [
 let audioContext = null;
 let isMuted = false;
 let menuMusic = null;      // misterio.mp3 - menú y configuración
-let gameMusic = null;      // misterio2.mp3 - cartas y juego
+let gameMusicTracks = [];  // misterio2.mp3 y misterio3.mp3
+let currentGameTrack = 0;  // Alterna entre las pistas
+let currentGameMusic = null;
 
 function initAudio() {
     if (!audioContext) {
@@ -100,49 +102,23 @@ function initAudio() {
         menuMusic.volume = 0.4;
     }
 
-    // Cargar música del juego
-    if (!gameMusic) {
-        gameMusic = new Audio('misterio2.mp3');
-        gameMusic.loop = true;
-        gameMusic.volume = 0.4;
+    // Cargar músicas del juego (alternando)
+    if (gameMusicTracks.length === 0) {
+        const track2 = new Audio('misterio2.mp3');
+        track2.loop = true;
+        track2.volume = 0.4;
+        gameMusicTracks.push(track2);
+
+        const track3 = new Audio('misterio3.mp3');
+        track3.loop = true;
+        track3.volume = 0.4;
+        gameMusicTracks.push(track3);
     }
 
-    // Iniciar música del menú
+    // Iniciar música del menú inmediatamente
     if (!isMuted) {
         menuMusic.play().catch(() => {});
     }
-}
-
-// Sonido de revelar carta (suave y misterioso)
-function playCardRevealSound() {
-    if (isMuted || !audioContext) return;
-
-    // Sonido suave tipo "revelación mágica"
-    const osc1 = audioContext.createOscillator();
-    const osc2 = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(audioContext.destination);
-
-    osc1.type = 'sine';
-    osc2.type = 'sine';
-
-    // Acordes suaves ascendentes
-    osc1.frequency.setValueAtTime(330, audioContext.currentTime); // Mi
-    osc1.frequency.linearRampToValueAtTime(440, audioContext.currentTime + 0.2); // La
-    osc2.frequency.setValueAtTime(440, audioContext.currentTime);
-    osc2.frequency.linearRampToValueAtTime(554, audioContext.currentTime + 0.2); // Do#
-
-    gain.gain.setValueAtTime(0, audioContext.currentTime);
-    gain.gain.linearRampToValueAtTime(0.12, audioContext.currentTime + 0.05);
-    gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.4);
-
-    osc1.start();
-    osc2.start();
-    osc1.stop(audioContext.currentTime + 0.4);
-    osc2.stop(audioContext.currentTime + 0.4);
 }
 
 // Tick urgente (últimos 20 segundos) - más suave
@@ -189,16 +165,28 @@ function playAlarm() {
     });
 }
 
-// Cambiar a música de juego (cartas y timer)
+// Cambiar a música de juego (cartas y timer) - alterna entre pistas
 function startGameMusic() {
     if (isMuted) return;
 
+    // Parar música de menú
     if (menuMusic) {
         menuMusic.pause();
         menuMusic.currentTime = 0;
     }
-    if (gameMusic) {
-        gameMusic.play().catch(() => {});
+
+    // Parar pista anterior si existe
+    if (currentGameMusic) {
+        currentGameMusic.pause();
+        currentGameMusic.currentTime = 0;
+    }
+
+    // Seleccionar siguiente pista (alterna)
+    currentGameMusic = gameMusicTracks[currentGameTrack];
+    currentGameTrack = (currentGameTrack + 1) % gameMusicTracks.length;
+
+    if (currentGameMusic) {
+        currentGameMusic.play().catch(() => {});
     }
 }
 
@@ -206,10 +194,12 @@ function startGameMusic() {
 function startMenuMusic() {
     if (isMuted) return;
 
-    if (gameMusic) {
-        gameMusic.pause();
-        gameMusic.currentTime = 0;
+    // Parar música de juego
+    if (currentGameMusic) {
+        currentGameMusic.pause();
+        currentGameMusic.currentTime = 0;
     }
+
     if (menuMusic) {
         menuMusic.play().catch(() => {});
     }
@@ -221,9 +211,9 @@ function stopAllMusic() {
         menuMusic.pause();
         menuMusic.currentTime = 0;
     }
-    if (gameMusic) {
-        gameMusic.pause();
-        gameMusic.currentTime = 0;
+    if (currentGameMusic) {
+        currentGameMusic.pause();
+        currentGameMusic.currentTime = 0;
     }
 }
 
@@ -244,9 +234,11 @@ function toggleMute() {
         muteBtn.classList.remove('muted');
         soundOn.style.display = 'block';
         soundOff.style.display = 'none';
-        // Reanudar música de juego si estamos jugando
+        // Reanudar música según estado
         if (gameState.timerRunning || screens.reveal.classList.contains('active')) {
-            startGameMusic();
+            if (currentGameMusic) {
+                currentGameMusic.play().catch(() => {});
+            }
         } else {
             startMenuMusic();
         }
@@ -628,10 +620,9 @@ function setupCardGestures() {
             const progress = Math.min(deltaY / 100, 1);
             elements.cardInner.style.transform = `rotateY(${progress * 180}deg)`;
 
-            // Si llegó al máximo, marcar como vista y reproducir sonido
+            // Si llegó al máximo, marcar como vista
             if (progress >= 1 && !hasSeenCard) {
                 hasSeenCard = true;
-                playCardRevealSound();
             }
         }
     }
@@ -687,10 +678,7 @@ function hideRules() {
 
 document.addEventListener('DOMContentLoaded', () => {
     // Home
-    document.getElementById('btnStart').addEventListener('click', () => {
-        initAudio(); // Inicializar audio en primera interacción
-        showScreen('config');
-    });
+    document.getElementById('btnStart').addEventListener('click', () => showScreen('config'));
     document.getElementById('btnRules').addEventListener('click', showRules);
 
     // Config
@@ -743,10 +731,24 @@ document.body.addEventListener('touchmove', (e) => {
     e.preventDefault();
 }, { passive: false });
 
-// Ocultar splash screen después de la animación
-setTimeout(() => {
-    const splash = document.getElementById('splashScreen');
-    if (splash) {
-        splash.classList.add('hidden');
-    }
-}, 2500);
+// Splash screen - tocar para iniciar y activar audio
+const splash = document.getElementById('splashScreen');
+if (splash) {
+    splash.addEventListener('click', () => {
+        initAudio();
+        splash.style.opacity = '0';
+        splash.style.visibility = 'hidden';
+        setTimeout(() => {
+            splash.classList.add('hidden');
+        }, 500);
+    });
+
+    splash.addEventListener('touchstart', () => {
+        initAudio();
+        splash.style.opacity = '0';
+        splash.style.visibility = 'hidden';
+        setTimeout(() => {
+            splash.classList.add('hidden');
+        }, 500);
+    }, { passive: true });
+}

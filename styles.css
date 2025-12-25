@@ -21,8 +21,8 @@
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    animation: splashFadeOut 0.5s ease 2s forwards;
-    pointer-events: none;
+    cursor: pointer;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
 }
 
 .splash-screen.hidden {
@@ -58,6 +58,22 @@
     letter-spacing: 3px;
     text-transform: uppercase;
     animation: splashCreditIn 0.8s ease-out 0.5s both;
+}
+
+.splash-tap {
+    margin-top: 50px;
+    font-size: 16px;
+    color: var(--accent-light);
+    animation: splashTapPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes splashTapPulse {
+    0%, 100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
 }
 
 @keyframes splashLogoIn {
