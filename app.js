@@ -87,7 +87,18 @@ let gameMusicTracks = [];  // misterio2.mp3 y misterio3.mp3
 let currentGameTrack = 0;  // Alterna entre las pistas
 let currentGameMusic = null;
 
+let audioInitialized = false;
+
 function initAudio() {
+    if (audioInitialized) {
+        // Si ya está inicializado, solo reanudar música
+        if (!isMuted && menuMusic) {
+            menuMusic.play().catch(() => {});
+        }
+        return;
+    }
+
+    // Crear AudioContext
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
@@ -96,29 +107,43 @@ function initAudio() {
     }
 
     // Cargar música del menú
-    if (!menuMusic) {
-        menuMusic = new Audio('misterio.mp3');
-        menuMusic.loop = true;
-        menuMusic.volume = 0.4;
-    }
+    menuMusic = new Audio('misterio.mp3');
+    menuMusic.loop = true;
+    menuMusic.volume = 0.4;
+    menuMusic.load(); // Forzar precarga
 
-    // Cargar músicas del juego (alternando)
-    if (gameMusicTracks.length === 0) {
-        const track2 = new Audio('misterio2.mp3');
-        track2.loop = true;
-        track2.volume = 0.4;
-        gameMusicTracks.push(track2);
+    // Cargar músicas del juego
+    const track2 = new Audio('misterio2.mp3');
+    track2.loop = true;
+    track2.volume = 0.4;
+    track2.load();
+    gameMusicTracks.push(track2);
 
-        const track3 = new Audio('misterio3.mp3');
-        track3.loop = true;
-        track3.volume = 0.4;
-        gameMusicTracks.push(track3);
-    }
+    const track3 = new Audio('misterio3.mp3');
+    track3.loop = true;
+    track3.volume = 0.4;
+    track3.load();
+    gameMusicTracks.push(track3);
 
-    // Iniciar música del menú inmediatamente
-    if (!isMuted) {
-        menuMusic.play().catch(() => {});
-    }
+    // TRUCO iOS: reproducir y pausar inmediatamente para "desbloquear" el audio
+    const unlockAudio = () => {
+        [menuMusic, ...gameMusicTracks].forEach(audio => {
+            audio.play().then(() => {
+                audio.pause();
+                audio.currentTime = 0;
+            }).catch(() => {});
+        });
+    };
+    unlockAudio();
+
+    // Ahora sí iniciar música del menú
+    setTimeout(() => {
+        if (!isMuted && menuMusic) {
+            menuMusic.play().catch(() => {});
+        }
+    }, 100);
+
+    audioInitialized = true;
 }
 
 // Tick urgente (últimos 20 segundos) - más suave
