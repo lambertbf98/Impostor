@@ -82,6 +82,8 @@ const WORDS = [
 
 let audioContext = null;
 let isMuted = false;
+let menuMusic = null;      // misterio.mp3 - menú y configuración
+let gameMusic = null;      // misterio2.mp3 - cartas y juego
 
 function initAudio() {
     if (!audioContext) {
@@ -90,49 +92,60 @@ function initAudio() {
     if (audioContext.state === 'suspended') {
         audioContext.resume();
     }
+
+    // Cargar música del menú
+    if (!menuMusic) {
+        menuMusic = new Audio('misterio.mp3');
+        menuMusic.loop = true;
+        menuMusic.volume = 0.4;
+    }
+
+    // Cargar música del juego
+    if (!gameMusic) {
+        gameMusic = new Audio('misterio2.mp3');
+        gameMusic.loop = true;
+        gameMusic.volume = 0.4;
+    }
+
+    // Iniciar música del menú
+    if (!isMuted) {
+        menuMusic.play().catch(() => {});
+    }
 }
 
-// Sonido de revelar carta (whoosh misterioso)
+// Sonido de revelar carta (suave y misterioso)
 function playCardRevealSound() {
     if (isMuted || !audioContext) return;
 
-    const osc = audioContext.createOscillator();
+    // Sonido suave tipo "revelación mágica"
+    const osc1 = audioContext.createOscillator();
+    const osc2 = audioContext.createOscillator();
     const gain = audioContext.createGain();
 
-    osc.connect(gain);
+    osc1.connect(gain);
+    osc2.connect(gain);
     gain.connect(audioContext.destination);
 
-    osc.frequency.setValueAtTime(800, audioContext.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.3);
+    osc1.type = 'sine';
+    osc2.type = 'sine';
 
-    gain.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    // Acordes suaves ascendentes
+    osc1.frequency.setValueAtTime(330, audioContext.currentTime); // Mi
+    osc1.frequency.linearRampToValueAtTime(440, audioContext.currentTime + 0.2); // La
+    osc2.frequency.setValueAtTime(440, audioContext.currentTime);
+    osc2.frequency.linearRampToValueAtTime(554, audioContext.currentTime + 0.2); // Do#
 
-    osc.start();
-    osc.stop(audioContext.currentTime + 0.3);
+    gain.gain.setValueAtTime(0, audioContext.currentTime);
+    gain.gain.linearRampToValueAtTime(0.12, audioContext.currentTime + 0.05);
+    gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.4);
+
+    osc1.start();
+    osc2.start();
+    osc1.stop(audioContext.currentTime + 0.4);
+    osc2.stop(audioContext.currentTime + 0.4);
 }
 
-// Tick del reloj (normal)
-function playTick() {
-    if (isMuted || !audioContext) return;
-
-    const osc = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-
-    osc.connect(gain);
-    gain.connect(audioContext.destination);
-
-    osc.frequency.setValueAtTime(800, audioContext.currentTime);
-    osc.type = 'sine';
-
-    gain.gain.setValueAtTime(0.1, audioContext.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.05);
-
-    osc.start();
-    osc.stop(audioContext.currentTime + 0.05);
-}
-
-// Tick urgente (últimos 30 segundos)
+// Tick urgente (últimos 20 segundos) - más suave
 function playUrgentTick() {
     if (isMuted || !audioContext) return;
 
@@ -142,37 +155,14 @@ function playUrgentTick() {
     osc.connect(gain);
     gain.connect(audioContext.destination);
 
-    osc.frequency.setValueAtTime(1200, audioContext.currentTime);
-    osc.type = 'square';
+    osc.frequency.setValueAtTime(880, audioContext.currentTime);
+    osc.type = 'sine';
 
-    gain.gain.setValueAtTime(0.15, audioContext.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.08, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.06);
 
     osc.start();
-    osc.stop(audioContext.currentTime + 0.08);
-}
-
-// Tick muy urgente (últimos 10 segundos)
-function playVeryUrgentTick() {
-    if (isMuted || !audioContext) return;
-
-    // Doble tick
-    for (let i = 0; i < 2; i++) {
-        const osc = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-
-        osc.connect(gain);
-        gain.connect(audioContext.destination);
-
-        osc.frequency.setValueAtTime(1500, audioContext.currentTime + i * 0.1);
-        osc.type = 'square';
-
-        gain.gain.setValueAtTime(0.2, audioContext.currentTime + i * 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + i * 0.1 + 0.06);
-
-        osc.start(audioContext.currentTime + i * 0.1);
-        osc.stop(audioContext.currentTime + i * 0.1 + 0.06);
-    }
+    osc.stop(audioContext.currentTime + 0.06);
 }
 
 // Alarma de tiempo terminado
@@ -199,56 +189,41 @@ function playAlarm() {
     });
 }
 
-// Música de fondo misteriosa (drone atmosférico)
-let bgMusicOscillators = [];
-let bgMusicGain = null;
+// Cambiar a música de juego (cartas y timer)
+function startGameMusic() {
+    if (isMuted) return;
 
-function startBackgroundMusic() {
-    if (isMuted || !audioContext) return;
-    stopBackgroundMusic();
-
-    bgMusicGain = audioContext.createGain();
-    bgMusicGain.connect(audioContext.destination);
-    bgMusicGain.gain.setValueAtTime(0, audioContext.currentTime);
-    bgMusicGain.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + 2);
-
-    // Notas base para atmósfera misteriosa (La menor)
-    const baseFreqs = [110, 164.81, 220]; // A2, E3, A3
-
-    baseFreqs.forEach(freq => {
-        const osc = audioContext.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, audioContext.currentTime);
-        osc.connect(bgMusicGain);
-        osc.start();
-        bgMusicOscillators.push(osc);
-    });
-
-    // Oscilador LFO para efecto de pulsación
-    const lfo = audioContext.createOscillator();
-    const lfoGain = audioContext.createGain();
-    lfo.frequency.setValueAtTime(0.5, audioContext.currentTime);
-    lfoGain.gain.setValueAtTime(0.02, audioContext.currentTime);
-    lfo.connect(lfoGain);
-    lfoGain.connect(bgMusicGain.gain);
-    lfo.start();
-    bgMusicOscillators.push(lfo);
+    if (menuMusic) {
+        menuMusic.pause();
+        menuMusic.currentTime = 0;
+    }
+    if (gameMusic) {
+        gameMusic.play().catch(() => {});
+    }
 }
 
-function stopBackgroundMusic() {
-    bgMusicOscillators.forEach(osc => {
-        try {
-            osc.stop();
-        } catch(e) {}
-    });
-    bgMusicOscillators = [];
-    bgMusicGain = null;
+// Cambiar a música de menú
+function startMenuMusic() {
+    if (isMuted) return;
+
+    if (gameMusic) {
+        gameMusic.pause();
+        gameMusic.currentTime = 0;
+    }
+    if (menuMusic) {
+        menuMusic.play().catch(() => {});
+    }
 }
 
-// Intensificar música cuando queda poco tiempo
-function intensifyMusic() {
-    if (bgMusicGain && audioContext) {
-        bgMusicGain.gain.linearRampToValueAtTime(0.15, audioContext.currentTime + 1);
+// Parar toda la música
+function stopAllMusic() {
+    if (menuMusic) {
+        menuMusic.pause();
+        menuMusic.currentTime = 0;
+    }
+    if (gameMusic) {
+        gameMusic.pause();
+        gameMusic.currentTime = 0;
     }
 }
 
@@ -264,13 +239,16 @@ function toggleMute() {
         muteBtn.classList.add('muted');
         soundOn.style.display = 'none';
         soundOff.style.display = 'block';
-        stopBackgroundMusic();
+        stopAllMusic();
     } else {
         muteBtn.classList.remove('muted');
         soundOn.style.display = 'block';
         soundOff.style.display = 'none';
-        if (gameState.timerRunning && !gameState.timerPaused) {
-            startBackgroundMusic();
+        // Reanudar música de juego si estamos jugando
+        if (gameState.timerRunning || screens.reveal.classList.contains('active')) {
+            startGameMusic();
+        } else {
+            startMenuMusic();
         }
     }
 }
@@ -424,6 +402,9 @@ function adjustTime(delta) {
 // ============================================
 
 function startGame() {
+    // Cambiar a música de juego
+    startGameMusic();
+
     // Seleccionar palabra aleatoria
     gameState.word = WORDS[Math.floor(Math.random() * WORDS.length)];
 
@@ -526,24 +507,14 @@ function startTimer() {
     updateTimerDisplay();
     showScreen('game');
 
-    // Iniciar música de fondo
-    startBackgroundMusic();
-
     gameState.timerInterval = setInterval(() => {
         if (!gameState.timerPaused) {
             gameState.timeRemaining--;
             updateTimerDisplay();
 
-            // Sonidos según el tiempo restante
-            if (gameState.timeRemaining <= 10 && gameState.timeRemaining > 0) {
-                playVeryUrgentTick();
-            } else if (gameState.timeRemaining <= 30 && gameState.timeRemaining > 0) {
+            // Solo tick en los últimos 20 segundos
+            if (gameState.timeRemaining <= 20 && gameState.timeRemaining > 0) {
                 playUrgentTick();
-                if (gameState.timeRemaining === 30) {
-                    intensifyMusic();
-                }
-            } else if (gameState.timeRemaining > 0) {
-                playTick();
             }
 
             if (gameState.timeRemaining <= 0) {
@@ -592,7 +563,7 @@ function togglePause() {
 function endTimer() {
     clearInterval(gameState.timerInterval);
     gameState.timerRunning = false;
-    stopBackgroundMusic();
+    stopAllMusic();
     playAlarm();
     showResult();
 }
@@ -600,7 +571,7 @@ function endTimer() {
 function endGame() {
     clearInterval(gameState.timerInterval);
     gameState.timerRunning = false;
-    stopBackgroundMusic();
+    stopAllMusic();
     showResult();
 }
 
@@ -620,6 +591,7 @@ function playAgain() {
 }
 
 function goHome() {
+    startMenuMusic();
     showScreen('home');
 }
 
