@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Generar Iconos - Impostor</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        h1 { margin-bottom: 30px; }
+        .icons { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-bottom: 30px; }
+        .icon-box { background: #252540; padding: 20px; border-radius: 12px; }
+        .icon-box p { margin-top: 10px; font-size: 14px; color: #888; }
+        canvas { display: block; margin: 0 auto 10px; border-radius: 20%; }
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover { opacity: 0.9; }
+        a { color: #a29bfe; }
+    </style>
+</head>
+<body>
+    <h1>Iconos de Impostor</h1>
+    <div class="icons" id="icons"></div>
+    <button onclick="downloadAll()">Descargar TODOS</button>
+    <p style="margin-top: 20px;">Guarda los iconos en la carpeta <code>icons/</code></p>
+
+    <script>
+        const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+
+        function drawIcon(size) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#6c5ce7');
+            gradient.addColorStop(1, '#a29bfe');
+
+            // Rounded rectangle background
+            const radius = size * 0.22;
+            ctx.beginPath();
+            ctx.roundRect(0, 0, size, size, radius);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // Spy emoji/icon
+            ctx.font = `${size * 0.5}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🕵️', size / 2, size / 2);
+
+            return canvas;
+        }
+
+        function init() {
+            const container = document.getElementById('icons');
+
+            sizes.forEach(size => {
+                const canvas = drawIcon(size);
+                const box = document.createElement('div');
+                box.className = 'icon-box';
+                box.appendChild(canvas);
+
+                const label = document.createElement('p');
+                label.textContent = `${size}x${size}`;
+                box.appendChild(label);
+
+                const btn = document.createElement('button');
+                btn.textContent = 'Descargar';
+                btn.style.padding = '8px 16px';
+                btn.style.fontSize = '12px';
+                btn.onclick = () => downloadIcon(canvas, size);
+                box.appendChild(btn);
+
+                container.appendChild(box);
+            });
+        }
+
+        function downloadIcon(canvas, size) {
+            const link = document.createElement('a');
+            link.download = `icon-${size}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function downloadAll() {
+            sizes.forEach((size, i) => {
+                setTimeout(() => {
+                    const canvas = drawIcon(size);
+                    downloadIcon(canvas, size);
+                }, i * 200);
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
