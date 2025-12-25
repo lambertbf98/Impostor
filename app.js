@@ -87,63 +87,49 @@ let gameMusicTracks = [];  // misterio2.mp3 y misterio3.mp3
 let currentGameTrack = 0;  // Alterna entre las pistas
 let currentGameMusic = null;
 
-let audioInitialized = false;
-
 function initAudio() {
-    if (audioInitialized) {
-        // Si ya está inicializado, solo reanudar música
-        if (!isMuted && menuMusic) {
-            menuMusic.play().catch(() => {});
-        }
-        return;
+    // Crear AudioContext nuevo cada vez (iOS lo requiere)
+    if (audioContext) {
+        try { audioContext.close(); } catch(e) {}
     }
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-    // Crear AudioContext
-    if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    // Recrear todos los audios
+    if (menuMusic) {
+        menuMusic.pause();
+        menuMusic = null;
     }
-    if (audioContext.state === 'suspended') {
-        audioContext.resume();
-    }
+    gameMusicTracks.forEach(t => t.pause());
+    gameMusicTracks = [];
 
     // Cargar música del menú
     menuMusic = new Audio('misterio.mp3');
     menuMusic.loop = true;
     menuMusic.volume = 0.4;
-    menuMusic.load(); // Forzar precarga
 
     // Cargar músicas del juego
     const track2 = new Audio('misterio2.mp3');
     track2.loop = true;
     track2.volume = 0.4;
-    track2.load();
     gameMusicTracks.push(track2);
 
     const track3 = new Audio('misterio3.mp3');
     track3.loop = true;
     track3.volume = 0.4;
-    track3.load();
     gameMusicTracks.push(track3);
 
-    // TRUCO iOS: reproducir y pausar inmediatamente para "desbloquear" el audio
-    const unlockAudio = () => {
-        [menuMusic, ...gameMusicTracks].forEach(audio => {
-            audio.play().then(() => {
-                audio.pause();
-                audio.currentTime = 0;
-            }).catch(() => {});
+    // Desbloquear todos los audios y luego iniciar menú
+    Promise.all([
+        menuMusic.play(),
+        gameMusicTracks[0].play(),
+        gameMusicTracks[1].play()
+    ].map(p => p.catch(() => {}))).then(() => {
+        // Pausar las de juego, dejar solo menú
+        gameMusicTracks.forEach(t => {
+            t.pause();
+            t.currentTime = 0;
         });
-    };
-    unlockAudio();
-
-    // Ahora sí iniciar música del menú
-    setTimeout(() => {
-        if (!isMuted && menuMusic) {
-            menuMusic.play().catch(() => {});
-        }
-    }, 100);
-
-    audioInitialized = true;
+    });
 }
 
 // Tick urgente (últimos 20 segundos) - más suave
@@ -758,22 +744,42 @@ document.body.addEventListener('touchmove', (e) => {
 
 // Splash screen - tocar para iniciar y activar audio
 const splash = document.getElementById('splashScreen');
-if (splash) {
-    splash.addEventListener('click', () => {
-        initAudio();
-        splash.style.opacity = '0';
-        splash.style.visibility = 'hidden';
-        setTimeout(() => {
-            splash.classList.add('hidden');
-        }, 500);
-    });
 
-    splash.addEventListener('touchstart', () => {
-        initAudio();
+function showSplash() {
+    if (splash) {
+        splash.classList.remove('hidden');
+        splash.style.opacity = '1';
+        splash.style.visibility = 'visible';
+    }
+}
+
+function hideSplash() {
+    if (splash) {
         splash.style.opacity = '0';
         splash.style.visibility = 'hidden';
         setTimeout(() => {
             splash.classList.add('hidden');
         }, 500);
-    }, { passive: true });
+    }
 }
+
+if (splash) {
+    const handleSplashTap = (e) => {
+        e.preventDefault();
+        initAudio();
+        hideSplash();
+    };
+
+    splash.addEventListener('click', handleSplashTap);
+    splash.addEventListener('touchend', handleSplashTap, { passive: false });
+}
+
+// Cuando la app vuelve a primer plano, mostrar splash para reactivar audio
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        // Parar música actual
+        stopAllMusic();
+        // Mostrar splash para que toque y reactive audio
+        showSplash();
+    }
+});
