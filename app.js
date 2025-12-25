@@ -82,54 +82,39 @@ const WORDS = [
 
 let audioContext = null;
 let isMuted = false;
-let menuMusic = null;      // misterio.mp3 - menú y configuración
-let gameMusicTracks = [];  // misterio2.mp3 y misterio3.mp3
-let currentGameTrack = 0;  // Alterna entre las pistas
-let currentGameMusic = null;
+let menuMusic = null;      // misterio.mp3 - menú, config y cartas
+let gameMusic = null;      // misterio2.mp3 - solo durante timer
 
 function initAudio() {
-    // Crear AudioContext nuevo cada vez (iOS lo requiere)
-    if (audioContext) {
-        try { audioContext.close(); } catch(e) {}
+    // Crear AudioContext
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
 
-    // Recrear todos los audios
+    // Parar música anterior si existe
     if (menuMusic) {
         menuMusic.pause();
-        menuMusic = null;
     }
-    gameMusicTracks.forEach(t => t.pause());
-    gameMusicTracks = [];
+    if (gameMusic) {
+        gameMusic.pause();
+    }
 
-    // Cargar música del menú
+    // Crear audios nuevos
     menuMusic = new Audio('misterio.mp3');
     menuMusic.loop = true;
-    menuMusic.volume = 0.4;
+    menuMusic.volume = 0.5;
 
-    // Cargar músicas del juego
-    const track2 = new Audio('misterio2.mp3');
-    track2.loop = true;
-    track2.volume = 0.4;
-    gameMusicTracks.push(track2);
+    gameMusic = new Audio('misterio2.mp3');
+    gameMusic.loop = true;
+    gameMusic.volume = 0.5;
 
-    const track3 = new Audio('misterio3.mp3');
-    track3.loop = true;
-    track3.volume = 0.4;
-    gameMusicTracks.push(track3);
-
-    // Desbloquear todos los audios y luego iniciar menú
-    Promise.all([
-        menuMusic.play(),
-        gameMusicTracks[0].play(),
-        gameMusicTracks[1].play()
-    ].map(p => p.catch(() => {}))).then(() => {
-        // Pausar las de juego, dejar solo menú
-        gameMusicTracks.forEach(t => {
-            t.pause();
-            t.currentTime = 0;
-        });
-    });
+    // Iniciar música del menú
+    if (!isMuted) {
+        menuMusic.play().catch(() => {});
+    }
 }
 
 // Tick urgente (últimos 20 segundos) - más suave
@@ -176,39 +161,26 @@ function playAlarm() {
     });
 }
 
-// Cambiar a música de juego (cartas y timer) - alterna entre pistas
+// Cambiar a música de juego (timer) - misterio2.mp3
 function startGameMusic() {
     if (isMuted) return;
 
-    // Parar música de menú
     if (menuMusic) {
         menuMusic.pause();
-        menuMusic.currentTime = 0;
     }
 
-    // Parar pista anterior si existe
-    if (currentGameMusic) {
-        currentGameMusic.pause();
-        currentGameMusic.currentTime = 0;
-    }
-
-    // Seleccionar siguiente pista (alterna)
-    currentGameMusic = gameMusicTracks[currentGameTrack];
-    currentGameTrack = (currentGameTrack + 1) % gameMusicTracks.length;
-
-    if (currentGameMusic) {
-        currentGameMusic.play().catch(() => {});
+    if (gameMusic) {
+        gameMusic.currentTime = 0;
+        gameMusic.play().catch(() => {});
     }
 }
 
-// Cambiar a música de menú
+// Cambiar a música de menú - misterio.mp3
 function startMenuMusic() {
     if (isMuted) return;
 
-    // Parar música de juego
-    if (currentGameMusic) {
-        currentGameMusic.pause();
-        currentGameMusic.currentTime = 0;
+    if (gameMusic) {
+        gameMusic.pause();
     }
 
     if (menuMusic) {
@@ -220,11 +192,9 @@ function startMenuMusic() {
 function stopAllMusic() {
     if (menuMusic) {
         menuMusic.pause();
-        menuMusic.currentTime = 0;
     }
-    if (currentGameMusic) {
-        currentGameMusic.pause();
-        currentGameMusic.currentTime = 0;
+    if (gameMusic) {
+        gameMusic.pause();
     }
 }
 
@@ -246,10 +216,8 @@ function toggleMute() {
         soundOn.style.display = 'block';
         soundOff.style.display = 'none';
         // Reanudar música según estado
-        if (gameState.timerRunning || screens.reveal.classList.contains('active')) {
-            if (currentGameMusic) {
-                currentGameMusic.play().catch(() => {});
-            }
+        if (gameState.timerRunning) {
+            startGameMusic();
         } else {
             startMenuMusic();
         }
@@ -405,8 +373,7 @@ function adjustTime(delta) {
 // ============================================
 
 function startGame() {
-    // Cambiar a música de juego
-    startGameMusic();
+    // misterio.mp3 sigue sonando durante las cartas
 
     // Seleccionar palabra aleatoria
     gameState.word = WORDS[Math.floor(Math.random() * WORDS.length)];
@@ -494,6 +461,9 @@ function startTimer() {
     gameState.timeRemaining = gameState.time * 60;
     gameState.timerRunning = true;
     gameState.timerPaused = false;
+
+    // Cambiar a música de juego (misterio2.mp3)
+    startGameMusic();
 
     // Actualizar info del juego
     elements.gamePlayersInfo.textContent = gameState.players;
@@ -744,19 +714,24 @@ document.body.addEventListener('touchmove', (e) => {
 
 // Splash screen - tocar para iniciar y activar audio
 const splash = document.getElementById('splashScreen');
+let splashDismissed = false;
 
 function showSplash() {
+    splashDismissed = false;
     if (splash) {
         splash.classList.remove('hidden');
         splash.style.opacity = '1';
         splash.style.visibility = 'visible';
+        splash.style.pointerEvents = 'auto';
     }
 }
 
 function hideSplash() {
-    if (splash) {
+    if (splash && !splashDismissed) {
+        splashDismissed = true;
         splash.style.opacity = '0';
         splash.style.visibility = 'hidden';
+        splash.style.pointerEvents = 'none';
         setTimeout(() => {
             splash.classList.add('hidden');
         }, 500);
@@ -764,14 +739,16 @@ function hideSplash() {
 }
 
 if (splash) {
-    const handleSplashTap = (e) => {
-        e.preventDefault();
-        initAudio();
-        hideSplash();
-    };
-
-    splash.addEventListener('click', handleSplashTap);
-    splash.addEventListener('touchend', handleSplashTap, { passive: false });
+    // Usar múltiples eventos para asegurar que funcione en iOS
+    ['click', 'touchstart', 'touchend'].forEach(eventType => {
+        splash.addEventListener(eventType, (e) => {
+            if (splashDismissed) return;
+            e.preventDefault();
+            e.stopPropagation();
+            initAudio();
+            hideSplash();
+        }, { passive: false });
+    });
 }
 
 // Cuando la app vuelve a primer plano, mostrar splash para reactivar audio
@@ -780,6 +757,14 @@ document.addEventListener('visibilitychange', () => {
         // Parar música actual
         stopAllMusic();
         // Mostrar splash para que toque y reactive audio
+        showSplash();
+    }
+});
+
+// También detectar cuando la página se recarga o vuelve del caché
+window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+        stopAllMusic();
         showSplash();
     }
 });
